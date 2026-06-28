@@ -37,7 +37,6 @@ def monitor_app(app_name):
     
     if rect:
         print(f"检测到 {app_name} 窗口区域: {rect}，正在截图并保存到 {screenshot_path}...")
-        # macOS 下使用 screencapture -R 截取特定区域 (x,y,w,h)
         os.system(f'screencapture -R {rect} "{screenshot_path}"')
     else:
         print(f"未能找到指定应用窗口，将截取全屏保存到 {screenshot_path}...")
@@ -46,34 +45,49 @@ def monitor_app(app_name):
     print(f"截图已保存: {screenshot_path}")
     return screenshot_path
 
-def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
+def upload_to_oss(source_file_name, bucket_name, object_name):
     """
-    3. 上传到 Google Cloud Storage (OSS)
-    需要先安装依赖: pip install google-cloud-storage
-    并且设置好环境变量: export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/key.json"
+    3. 上传到兼容 S3 协议的 OSS (如 Cloudflare R2, Backblaze B2, 阿里云 OSS 等)
+    需要先安装依赖: pip install boto3
     """
     try:
-        from google.cloud import storage
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(destination_blob_name)
+        import boto3
+        from botocore.exceptions import NoCredentialsError
 
-        print(f"正在上传 {source_file_name} 到 Google Cloud Storage bucket {bucket_name}...")
-        blob.upload_from_filename(source_file_name)
-        print(f"上传成功！文件已保存至: gs://{bucket_name}/{destination_blob_name}")
+        # 请替换为你的 OSS 服务商提供的参数
+        # 这里以通用的 S3 兼容 API 为例
+        ENDPOINT_URL = 'https://<你的OSS服务商地址>.com'  
+        ACCESS_KEY = '<你的_ACCESS_KEY>'
+        SECRET_KEY = '<你的_SECRET_KEY>'
+
+        print(f"正在上传 {source_file_name} 到 OSS...")
+        
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=ENDPOINT_URL,
+            aws_access_key_id=ACCESS_KEY,
+            aws_secret_access_key=SECRET_KEY
+        )
+
+        s3_client.upload_file(source_file_name, bucket_name, object_name)
+        print(f"上传成功！文件已保存至 bucket: {bucket_name}, 路径: {object_name}")
+
     except ImportError:
-        print("未安装 google-cloud-storage，跳过上传。请运行 pip install google-cloud-storage 安装。")
+        print("未安装 boto3，跳过上传。请运行 pip install boto3 安装。")
+    except NoCredentialsError:
+        print("未找到有效的凭证，上传失败。")
     except Exception as e:
-        print(f"上传失败，请检查凭证配置。错误信息: {e}")
+        print(f"上传失败，错误信息: {e}")
 
 if __name__ == "__main__":
     target_app = "Calculator" 
     
     saved_image = monitor_app(target_app)
     
-    # 如果需要上传到云端，取消下面两行的注释并填入正确的 bucket 名称
+    # ==== OSS 上传区 ====
+    # 如果您申请了免费的 OSS 并且填好了上面的密钥信息，取消下面三行的注释即可开启自动上传：
     # bucket_name = "your-bucket-name"
     # destination_name = os.path.basename(saved_image)
-    # upload_to_gcs(bucket_name, saved_image, destination_name)
+    # upload_to_oss(saved_image, bucket_name, destination_name)
     
     print("脚本执行完毕！")

@@ -32,8 +32,7 @@ def monitor_app(app_name):
 
     # 2. 获取该软件的窗口区域
     rect = get_window_rect(app_name)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    screenshot_path = f"screenshot_{app_name}_{timestamp}.png"
+    screenshot_path = f"screenshot_{app_name}.png"
     
     if rect:
         print(f"检测到 {app_name} 窗口区域: {rect}，正在截图并保存到 {screenshot_path}...")

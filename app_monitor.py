@@ -3,24 +3,47 @@ import time
 import subprocess
 from datetime import datetime
 
+def get_window_rect(app_name):
+    # 使用 AppleScript 获取软件的主窗口位置和大小
+    script = f'''
+    tell application "System Events"
+        tell process "{app_name}"
+            set p to position of window 1
+            set s to size of window 1
+            return (item 1 of p as string) & "," & (item 2 of p as string) & "," & (item 1 of s as string) & "," & (item 2 of s as string)
+        end tell
+    end tell
+    '''
+    try:
+        result = subprocess.check_output(['osascript', '-e', script], text=True).strip()
+        x, y, w, h = result.split(',')
+        return f"{x},{y},{w},{h}"
+    except Exception as e:
+        print(f"无法获取 {app_name} 的窗口位置。错误：{e}")
+        return None
+
 def monitor_app(app_name):
     # 1. 激活/打开软件
     print(f"正在打开 {app_name}...")
-    # macOS 下使用 open 命令打开应用程序
     os.system(f'open -a "{app_name}"')
     
-    # 等待软件完全打开（可根据软件启动速度调整等待时间）
+    # 等待软件完全打开
     time.sleep(3)
 
-    # 2. 截图保存到本地
+    # 2. 获取该软件的窗口区域
+    rect = get_window_rect(app_name)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     screenshot_path = f"screenshot_{app_name}_{timestamp}.png"
-    print(f"正在截图并保存到 {screenshot_path}...")
-    # macOS 下使用 screencapture 命令进行全屏截图
-    # 如果想只截取当前窗口，可以使用其它参数或者第三方库如 pyautogui
-    os.system(f'screencapture -x "{screenshot_path}"')
-    print(f"截图已保存: {screenshot_path}")
     
+    if rect:
+        print(f"检测到 {app_name} 窗口区域: {rect}，正在截图并保存到 {screenshot_path}...")
+        # macOS 下使用 screencapture -R 截取特定区域 (x,y,w,h)
+        os.system(f'screencapture -R {rect} "{screenshot_path}"')
+    else:
+        print(f"未能找到指定应用窗口，将截取全屏保存到 {screenshot_path}...")
+        os.system(f'screencapture -x "{screenshot_path}"')
+        
+    print(f"截图已保存: {screenshot_path}")
     return screenshot_path
 
 def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
@@ -44,15 +67,12 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
         print(f"上传失败，请检查凭证配置。错误信息: {e}")
 
 if __name__ == "__main__":
-    # 替换为你想要监控的软件名称，例如 "Calculator", "Safari", "微信" 等
     target_app = "Calculator" 
-    
-    # 替换为你的 Google Cloud Storage Bucket 名称
-    # bucket_name = "your-bucket-name"
     
     saved_image = monitor_app(target_app)
     
     # 如果需要上传到云端，取消下面两行的注释并填入正确的 bucket 名称
+    # bucket_name = "your-bucket-name"
     # destination_name = os.path.basename(saved_image)
     # upload_to_gcs(bucket_name, saved_image, destination_name)
     
